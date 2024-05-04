@@ -115,7 +115,7 @@ export default {
 };
 
 function getLocaleFromRequest(request: Request): I18nLocale {
-  const defaultLocale: I18nLocale = {language: 'EN', country: 'US'};
+  const defaultLocale: I18nLocale = {language: 'JA', country: 'JP'};
   const supportedLocales = {
     ES: 'ES',
     FR: 'FR',
