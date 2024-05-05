@@ -1,4 +1,4 @@
-import {Suspense} from 'react';
+import {Dispatch, SetStateAction, Suspense, useEffect, useState} from 'react';
 import {defer, redirect, type LoaderFunctionArgs} from '@shopify/remix-oxygen';
 import {
   Await,
@@ -6,6 +6,8 @@ import {
   useLoaderData,
   type MetaFunction,
   type FetcherWithComponents,
+  useLocation,
+  useSearchParams,
 } from '@remix-run/react';
 import type {
   ProductFragment,
@@ -25,6 +27,24 @@ import type {
   SelectedOption,
 } from '@shopify/hydrogen/storefront-api-types';
 import {getVariantUrl} from '~/lib/variants';
+import {
+  CaptionProps,
+  DateFormatter,
+  DateRange,
+  DayPicker,
+  IconLeft,
+  IconRight,
+  useNavigation,
+} from 'react-day-picker';
+import {
+  addDays,
+  addMonths,
+  differenceInCalendarDays,
+  format,
+  isSameMonth,
+} from 'date-fns';
+import 'react-day-picker/dist/style.css';
+import {ja} from 'date-fns/locale';
 
 export const meta: MetaFunction<typeof loader> = ({data, location}) => {
   return [{title: `Hydrogen | ${data?.product.title ?? ''}`}];
@@ -227,6 +247,8 @@ function ProductForm({
   selectedVariant: ProductFragment['selectedVariant'];
   variants: Array<ProductVariantFragment>;
 }) {
+  const [range, setRange] = useState<DateRange | undefined>();
+  const [isSelectedDays, setIsSelectedDays] = useState(false);
   return (
     <div className="product-form">
       <VariantSelector
@@ -234,24 +256,55 @@ function ProductForm({
         options={product.options}
         variants={variants}
       >
-        {({option}) => <ProductOptions key={option.name} option={option} />}
+        {({option}) =>
+          option.name !== 'Duration' && (
+            <ProductOptions key={option.name} option={option} />
+          )
+        }
       </VariantSelector>
+      <br />
+      <DatePicker
+        range={range}
+        setRange={setRange}
+        setIsSelectedDays={setIsSelectedDays}
+      />
       <br />
       <AddToCartButton
         disabled={!selectedVariant || !selectedVariant.availableForSale}
         onClick={() => {
-          window.location.href = window.location.href + '#cart-aside';
+          window.location.href =
+            window.location.href +
+              window.location.href[window.location.href.length - 1] ===
+            '#'
+              ? 'cart-aside'
+              : '#cart-aside';
         }}
         lines={
           selectedVariant
             ? [
-                {
-                  merchandiseId: selectedVariant.id,
-                  quantity: 1,
-                },
+                range?.from && range?.to
+                  ? {
+                      merchandiseId: selectedVariant.id,
+                      quantity: 1,
+                      attributes: [
+                        {
+                          key: 'チェックイン',
+                          value: format(range.from, 'yyyy/MM/dd'),
+                        },
+                        {
+                          key: 'チェックアウト',
+                          value: format(range.to, 'yyyy/MM/dd'),
+                        },
+                      ],
+                    }
+                  : {
+                      merchandiseId: selectedVariant.id,
+                      quantity: 1,
+                    },
               ]
             : []
         }
+        isSelectedDays={isSelectedDays}
       >
         {selectedVariant?.availableForSale ? 'Add to cart' : 'Sold out'}
       </AddToCartButton>
@@ -294,12 +347,14 @@ function AddToCartButton({
   disabled,
   lines,
   onClick,
+  isSelectedDays,
 }: {
   analytics?: unknown;
   children: React.ReactNode;
   disabled?: boolean;
   lines: CartLineInput[];
   onClick?: () => void;
+  isSelectedDays?: boolean;
 }) {
   return (
     <CartForm route="/cart" inputs={{lines}} action={CartForm.ACTIONS.LinesAdd}>
@@ -313,13 +368,172 @@ function AddToCartButton({
           <button
             type="submit"
             onClick={onClick}
-            disabled={disabled ?? fetcher.state !== 'idle'}
+            disabled={(!isSelectedDays || disabled) ?? fetcher.state !== 'idle'}
           >
             {children}
           </button>
         </>
       )}
     </CartForm>
+  );
+}
+
+function DatePicker({
+  range,
+  setRange,
+  setIsSelectedDays,
+}: {
+  range: DateRange | undefined;
+  setRange: Dispatch<SetStateAction<DateRange | undefined>>;
+  setIsSelectedDays: Dispatch<SetStateAction<boolean>>;
+}) {
+  const locale = ja;
+  const today = new Date();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectAbleStartDate = addDays(today, 2);
+  const maxDate = addDays(today, 120);
+
+  const handleResetClick = () => setRange(undefined);
+  const [month, setMonth] = useState<Date>(today);
+
+  const resetButton = (
+    <button
+      onClick={handleResetClick}
+      style={{border: '1px solid'}}
+      className="rdp-button px-1"
+    >
+      Reset
+    </button>
+  );
+  const todayButton = (
+    <button
+      disabled={isSameMonth(today, month)}
+      onClick={() => setMonth(today)}
+      style={{border: '1px solid'}}
+      className="rdp-button px-1"
+    >
+      今日
+    </button>
+  );
+
+  const seasonEmoji: Record<string, string> = {
+    winter: '⛄️',
+    spring: '🌸',
+    summer: '🌻',
+    autumn: '🍂',
+  };
+  const getSeason = (month: Date): string => {
+    const monthNumber = month.getMonth();
+    if (monthNumber >= 0 && monthNumber < 3) return 'winter';
+    if (monthNumber >= 3 && monthNumber < 6) return 'spring';
+    if (monthNumber >= 6 && monthNumber < 9) return 'summer';
+    else return 'autumn';
+  };
+  const formatCaption: DateFormatter = (date, options) => {
+    const season = getSeason(date);
+    return (
+      <div className="rdp-caption_label gap-2">
+        <span role="img" aria-label={season}>
+          {seasonEmoji[season]}
+        </span>{' '}
+        {format(date, 'LLLL', {locale: options?.locale})}
+        {format(date, 'yyyy', {locale: options?.locale})}
+      </div>
+    );
+  };
+
+  function CustomCaption(props: CaptionProps) {
+    const {goToMonth, nextMonth, previousMonth} = useNavigation();
+    return (
+      <div className="rdp-caption">
+        {formatCaption(props.displayMonth, {locale})}
+        <div className="rdp-nav flex">
+          <button
+            disabled={!previousMonth}
+            onClick={() => previousMonth && goToMonth(previousMonth)}
+            className="rdp-button_reset rdp-button rdp-nav_button rdp-nav_button_previous w-30"
+            style={{width: '30px', height: '30px'}}
+          >
+            <IconLeft className="rdp-nav_icon" />
+          </button>
+          <button
+            disabled={!nextMonth}
+            onClick={() => nextMonth && goToMonth(nextMonth)}
+            className="rdp-button_reset rdp-button rdp-nav_button rdp-nav_button_next"
+            style={{width: '30px', height: '30px'}}
+          >
+            <IconRight className="rdp-nav_icon" />
+          </button>
+          {todayButton}
+        </div>
+      </div>
+    );
+  }
+
+  const disabledDays = [
+    new Date(2022, 5, 10),
+    new Date(2022, 5, 12),
+    new Date(2022, 5, 20),
+  ];
+
+  let footer = <p>日付を選択してください</p>;
+  if (range?.from) {
+    if (!range.to) {
+      footer = (
+        <div>
+          <p>チェックイン: {format(range.from, 'PPP', {locale})}</p>
+          {resetButton}
+        </div>
+      );
+    } else if (range.to) {
+      const stayDaysNight = differenceInCalendarDays(range.to, range.from);
+      footer = (
+        <div>
+          <p>
+            チェックイン: {format(range.from, 'PPP', {locale})}
+            <br />
+            チェックアウト: {format(range.to, 'PPP', {locale})}
+            <br />
+            宿泊日数: {stayDaysNight}日
+          </p>
+          {resetButton}
+        </div>
+      );
+    }
+  }
+
+  useEffect(() => {
+    setIsSelectedDays(false);
+    let stayDaysNight = 1;
+    if (range?.from && range?.to) {
+      stayDaysNight = differenceInCalendarDays(range.to, range.from);
+      setIsSelectedDays(true);
+    }
+    const params = new URLSearchParams(location.search);
+    params.set('Duration', `${stayDaysNight}Day`);
+    setSearchParams(params);
+  }, [range?.to, range?.from]);
+
+  return (
+    <DayPicker
+      id="bookingDatePicker"
+      mode="range"
+      selected={range}
+      onSelect={setRange}
+      max={8}
+      toDate={maxDate}
+      showOutsideDays
+      month={month}
+      onMonthChange={setMonth}
+      fromDate={selectAbleStartDate}
+      disabled={disabledDays}
+      footer={footer}
+      components={{
+        Caption: CustomCaption,
+      }}
+      locale={locale}
+    />
   );
 }
 
