@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --aside-width: 400px;
   --cart-aside-summary-height-with-discount: 300px;
@@ -298,8 +302,6 @@ aside li {
   align-items: center;
   gap: 1rem;
 }
-
-
 
 /*
 * --------------------------------------------------
