@@ -7,6 +7,7 @@ import type {
   RecommendedProductsQuery,
 } from 'storefrontapi.generated';
 import {instagramBasicDisplayApiPosts} from '~/lib/instagram';
+import Instagram from '~/components/Instagram';
 
 export const meta: MetaFunction = () => {
   return [{title: 'Hydrogen | Home'}];
@@ -28,10 +29,15 @@ export async function loader({context}: LoaderFunctionArgs) {
 
 export default function Homepage() {
   const data = useLoaderData<typeof loader>();
+  // console.log(data.instaPosts);
   return (
     <div className="home">
       <FeaturedCollection collection={data.featuredCollection} />
       <RecommendedProducts products={data.recommendedProducts} />
+      <Instagram
+        post={data.instaPosts?.data ? data.instaPosts.data : null}
+        postCount={5}
+      />
     </div>
   );
 }
