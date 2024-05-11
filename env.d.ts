@@ -27,6 +27,8 @@ declare global {
    * Declare expected Env parameter in fetch handler.
    */
   interface Env {
+    GOOGLE_PROJECT_NUMBER: string;
+    GOOGLE_CALENDAR_ID: string;
     SESSION_SECRET: string;
     PUBLIC_STOREFRONT_API_TOKEN: string;
     PRIVATE_STOREFRONT_API_TOKEN: string;

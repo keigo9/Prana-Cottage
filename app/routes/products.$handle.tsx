@@ -45,6 +45,7 @@ import {
 } from 'date-fns';
 import 'react-day-picker/dist/style.css';
 import {ja} from 'date-fns/locale';
+import {getEvents} from '~/.server/googleCal';
 
 export const meta: MetaFunction<typeof loader> = ({data, location}) => {
   return [{title: `Hydrogen | ${data?.product.title ?? ''}`}];
@@ -105,6 +106,8 @@ export async function loader({params, request, context}: LoaderFunctionArgs) {
   const variants = storefront.query(VARIANTS_QUERY, {
     variables: {handle},
   });
+
+  getEvents(context.env.GOOGLE_PROJECT_NUMBER, context.env.GOOGLE_CALENDAR_ID);
 
   return defer({product, variants});
 }
